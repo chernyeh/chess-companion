@@ -38,13 +38,13 @@ const mkData=():UserData=>({tacticsSR:{},openingSR:{},endgameSR:{},solved:0,att:
 async function askCoach(ctx:string,wrongMove:string|null,mode:string):Promise<string>{try{const res=await fetch("/api/coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({context:ctx,wrongMove,mode})});const d=await res.json();return d.message||"Keep practicing!"}catch{return"Great effort!"}}
 function getStaticCoaching(themes:string[],ok:boolean):string{for(const t of themes){const c=THEME_COACHING[t];if(c)return ok?c.ok:c.fail}return ok?"Well done!":"Review the solution — you will spot it next time!"}
 
-// ── Board with high-contrast pieces ──
+// ── Board — Lichess-style colors, high-contrast pieces ──
 function Board({board,flipped,sel,mvs,onClick,lastMv,wrongSq,guideSq,compact}:{board:(string|null)[][],flipped:boolean,sel:number[]|null,mvs:number[][],onClick:(r:number,c:number)=>void,lastMv:{fr:number,fc:number,tr:number,tc:number}|null,wrongSq:number[]|null,guideSq?:number[]|null,compact?:boolean}){
   const rnks=flipped?[0,1,2,3,4,5,6,7]:[7,6,5,4,3,2,1,0];
   const fls=flipped?[7,6,5,4,3,2,1,0]:[0,1,2,3,4,5,6,7];
-  const sz=compact?"min(52vh,80vw)":"min(60vh,88vw)";
-  const fsz=compact?"min(5.5vw,5.5vh,36px)":"min(6vw,6.5vh,44px)";
-  return(<div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",width:sz,height:sz,borderRadius:"6px",overflow:"hidden",boxShadow:"0 2px 12px rgba(0,0,0,0.15)",flexShrink:0}}>
+  const sz=compact?"min(54vh,86vw)":"min(62vh,90vw)";
+  const fsz=compact?"min(6.5vw,6.5vh,42px)":"min(7vw,7vh,48px)";
+  return(<div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",width:sz,height:sz,borderRadius:"4px",overflow:"hidden",boxShadow:"0 4px 16px rgba(0,0,0,0.25)",flexShrink:0}}>
     {rnks.map((_,vy)=>{const row=flipped?_:7-_;return fls.map((hi,hx)=>{const col=flipped?7-hi:hi;
       const lt=(row+col)%2===0;const p=board[row]?.[col];
       const isSel=sel?sel[0]===row&&sel[1]===col:false;
@@ -52,27 +52,29 @@ function Board({board,flipped,sel,mvs,onClick,lastMv,wrongSq,guideSq,compact}:{b
       const isLast=lastMv?((lastMv.fr===row&&lastMv.fc===col)||(lastMv.tr===row&&lastMv.tc===col)):false;
       const isWr=wrongSq?wrongSq[0]===row&&wrongSq[1]===col:false;
       const isGuide=guideSq?((guideSq[0]===row&&guideSq[1]===col)||(guideSq[2]===row&&guideSq[3]===col)):false;
-      let bg=lt?"#EEDEBC":"#779556";
-      if(isSel)bg=lt?"#F6E68A":"#B5C94A";
-      else if(isWr)bg=lt?"#F8A0A0":"#D45555";
-      else if(isGuide)bg=lt?"#90CAF9":"#42A5F5";
-      else if(isLast)bg=lt?"#E8E07A":"#A0B84A";
-      // High-contrast piece styling
+      // Lichess classic board palette
+      let bg=lt?"#F0D9B5":"#B58863";
+      if(isSel)bg=lt?"#F6F669":"#CDD26A";
+      else if(isWr)bg=lt?"#FF6B6B":"#CC3333";
+      else if(isGuide)bg=lt?"#7EC8E3":"#3A9AB5";
+      else if(isLast)bg=lt?"#CDD26A":"#AABA3A";
+      // Piece rendering — stroke outline for crisp visibility on any square
       const pieceStyle:React.CSSProperties=p?{
-        fontSize:fsz,lineHeight:1,zIndex:1,
-        color:isW(p)?"#FFFFFF":"#000000",
+        fontSize:fsz,lineHeight:1,zIndex:1,userSelect:"none",
+        color:isW(p)?"#FFFFFF":"#1a1a1a",
+        WebkitTextStroke:isW(p)?"1.2px #2a2a2a":"1px rgba(255,255,255,0.85)",
         textShadow:isW(p)
-          ?"0 0 2px #000, 0 0 2px #000, 1px 1px 2px rgba(0,0,0,0.8), -1px -1px 0 rgba(0,0,0,0.4)"
-          :"0 0 2px #FFF, 0 0 2px #FFF, 1px 1px 1px rgba(255,255,255,0.5)",
-        transform:isSel?"scale(1.15)":"scale(1)",transition:"transform .1s",
+          ?"0 1px 4px rgba(0,0,0,0.55),0 0 2px rgba(0,0,0,0.3)"
+          :"0 1px 3px rgba(255,255,255,0.4)",
+        transform:isSel?"scale(1.18)":"scale(1)",transition:"transform .1s",
       }:{};
-      return(<div key={row+"-"+col} onClick={()=>onClick(row,col)} style={{background:bg,display:"flex",alignItems:"center",justifyContent:"center",position:"relative",cursor:"pointer",aspectRatio:"1",transition:"background .1s"}}>
-        {isMv&&!p&&<div style={{width:"26%",height:"26%",borderRadius:"50%",background:"rgba(0,0,0,0.18)"}}/>}
-        {isMv&&!!p&&<div style={{position:"absolute",inset:"3px",borderRadius:"50%",border:"3px solid rgba(0,0,0,0.25)"}}/>}
-        {isGuide&&<div style={{position:"absolute",inset:"2px",borderRadius:"50%",border:"3px solid #1565C0",animation:"pulse 1s ease-in-out infinite"}}/>}
+      return(<div key={row+"-"+col} onClick={()=>onClick(row,col)} style={{background:bg,display:"flex",alignItems:"center",justifyContent:"center",position:"relative",cursor:"pointer",aspectRatio:"1",transition:"background .12s"}}>
+        {isMv&&!p&&<div style={{width:"32%",height:"32%",borderRadius:"50%",background:lt?"rgba(0,0,0,0.16)":"rgba(0,0,0,0.22)"}}/>}
+        {isMv&&!!p&&<div style={{position:"absolute",inset:"3px",borderRadius:"50%",border:"3.5px solid rgba(0,0,0,0.28)"}}/>}
+        {isGuide&&<div style={{position:"absolute",inset:"2px",borderRadius:"3px",border:"3px solid #1565C0",animation:"pulse 1s ease-in-out infinite"}}/>}
         {p&&<span style={pieceStyle}>{PC[p]}</span>}
-        {vy===7&&<span style={{position:"absolute",bottom:1,right:2,fontSize:"8px",fontWeight:700,opacity:.5,color:lt?"#8E7E5E":"#F0E4C8"}}>{"abcdefgh"[col]}</span>}
-        {hx===0&&<span style={{position:"absolute",top:1,left:2,fontSize:"8px",fontWeight:700,opacity:.5,color:lt?"#8E7E5E":"#F0E4C8"}}>{8-row}</span>}
+        {vy===7&&<span style={{position:"absolute",bottom:1,right:2,fontSize:"9px",fontWeight:700,opacity:.65,color:lt?"#7a6040":"#f0ddb5"}}>{"abcdefgh"[col]}</span>}
+        {hx===0&&<span style={{position:"absolute",top:1,left:2,fontSize:"9px",fontWeight:700,opacity:.65,color:lt?"#7a6040":"#f0ddb5"}}>{8-row}</span>}
       </div>)})}).flat()}
   </div>);
 }
@@ -287,7 +289,10 @@ export default function ChessCompanion(){
       {isOp&&curStatus==="done"&&opLine!.summary&&<div style={{background:"#E8F5E9",borderRadius:"10px",padding:"10px 12px",marginBottom:"6px"}}><p style={{margin:0,fontSize:"14px",lineHeight:1.5,color:"#2E7D32"}}>📖 {opLine!.summary}</p></div>}
 
       {!isOp&&curStatus==="solved"&&<div style={{background:"#E8F5E9",borderRadius:"10px",padding:"10px",marginBottom:"6px",textAlign:"center"}}><span style={{fontSize:"16px",fontWeight:700,color:"#2E7D32"}}>🎉 {hintUsed?"Solved with hint":"Brilliant!"}</span></div>}
-      {curStatus==="fail"&&!isOp&&<div style={{background:"#FFEBEE",borderRadius:"10px",padding:"10px",marginBottom:"6px",textAlign:"center"}}><span style={{fontSize:"16px",fontWeight:700,color:"#D32F2F"}}>💡 Not quite</span></div>}
+      {curStatus==="fail"&&!isOp&&<div style={{background:"#FFEBEE",border:"1px solid #FFCDD2",borderRadius:"10px",padding:"10px 12px",marginBottom:"6px"}}>
+        <div style={{fontSize:"15px",fontWeight:700,color:"#D32F2F",marginBottom:"4px"}}>❌ Incorrect — here&apos;s why</div>
+        <p style={{margin:0,fontSize:"13px",lineHeight:1.5,color:"#B71C1C"}}>{puzzle&&getStaticCoaching(puzzle.th,false)}</p>
+      </div>}
       {curStatus==="fail"&&isOp&&!opGuideMode&&<div style={{background:"#FFEBEE",borderRadius:"10px",padding:"10px",marginBottom:"6px",textAlign:"center"}}><span style={{fontSize:"14px",fontWeight:600,color:"#D32F2F"}}>Try Learn Mode first!</span></div>}
       {curStatus==="timeout"&&<div style={{background:"#FFF3E0",borderRadius:"10px",padding:"10px",marginBottom:"6px",textAlign:"center"}}><span style={{fontSize:"16px",fontWeight:700,color:"#E65100"}}>⏱ Score: {rushScore}{rushScore>(data?.rushBest||0)?" 🏆 New best!":""}</span></div>}
 
@@ -296,7 +301,11 @@ export default function ChessCompanion(){
 
       {/* Coach */}
       {(curStatus==="solved"||curStatus==="fail"||curStatus==="done")&&!coach&&<div style={{display:"flex",gap:"6px",marginBottom:"6px"}}><button onClick={showStaticCoach} style={{...bS,flex:1,fontSize:"14px",padding:"8px"}}>💡 Tip</button><button onClick={doAskCoach} disabled={coachLoad} style={{...bS,flex:1,fontSize:"14px",padding:"8px",opacity:coachLoad?.5:1}}>{coachLoad?"🤔...":"🧠 AI Coach"}</button></div>}
-      {coach&&<div style={{background:"#E8F5E9",borderRadius:"10px",padding:"10px 12px",marginBottom:"6px"}}><p style={{margin:0,fontSize:"14px",lineHeight:1.5,color:"#2E7D32"}}>{coach}</p></div>}
+      {coach&&<div style={{background:"#E8F5E9",border:"1px solid #C8E6C9",borderRadius:"10px",padding:"10px 12px",marginBottom:"6px"}}>
+        {coach.split("\n").filter(l=>l.trim()).map((line,i)=>(
+          <p key={i} style={{margin:"0 0 4px",fontSize:"13px",lineHeight:1.55,color:"#1B5E20",paddingLeft:line.startsWith("•")?"0":"8px"}}>{line}</p>
+        ))}
+      </div>}
 
       {/* Action buttons — always visible */}
       <div style={{display:"flex",gap:"8px",marginTop:"auto",paddingBottom:"10px"}}>
