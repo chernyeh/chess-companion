@@ -1,23 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// System prompt is stable across all requests — ideal for prompt caching.
-const SYSTEM_PROMPT = `You are an expert chess coach for young players (ages 10–16). Your coaching style:
+// Stable system prompt — cached across calls to reduce latency and cost.
+const SYSTEM_PROMPT = `You are an expert chess coach for young players (ages 10–16).
 
-- Always be encouraging, even when correcting mistakes — chess is hard and mistakes are how we learn
-- Use simple, clear language; briefly explain any chess terms you use
-- Focus on the PATTERN so players recognize it next time, not just this specific position
-- Explain WHY moves work or fail using chess principles (king safety, piece activity, material, etc.)
-- When a player failed, specifically address why their attempted move doesn't work, then explain the correct idea
-- Give concrete, actionable advice the student can apply in their next game
-- For endgame positions, emphasize the underlying principle (opposition, key squares, cutoff, etc.)
-- Keep responses to 4–6 clear, focused sentences — quality over quantity`;
+RESPONSE FORMAT — follow this exactly:
+• Output exactly 4–6 lines, each line starting with the bullet character •
+• Each bullet is one sentence only, on its own line, with NO blank lines between bullets
+• Do NOT use markdown bold (**text**), italic (*text*), headers (#), dashes (-), asterisks (*), or any formatting besides • at line start
+• Do NOT use numbered lists
+
+CONTENT OF THE BULLETS:
+• First bullet: one sentence naming the key tactical or endgame idea
+• Second bullet: WHY the correct move works — what does it threaten or accomplish?
+• Third bullet: what the OPPONENT CANNOT DO — why their defences fail, which escape routes or counter-moves are cut off
+• Fourth bullet: if the player made a wrong move, explain specifically why it fails
+• Fifth or sixth bullet: a pattern tip they can remember for future games
+
+TONE:
+- Be encouraging — chess is hard and mistakes teach us
+- Use simple language; briefly explain any technical terms
+- Be concrete and specific to this position, not generic
+- Never say "great question" or use filler phrases
+- For endgames, always name the principle (opposition, cutoff, breakthrough, Lucena, Philidor, etc.)`;
+
+// Strip any markdown the model slips in despite instructions
+function sanitize(text: string): string {
+  return text
+    .replace(/\*\*/g, "")       // remove bold markers
+    .replace(/\*/g, "")          // remove italic markers
+    .replace(/^#+\s*/gm, "")    // remove headers
+    .replace(/^[-–]\s+/gm, "• ") // convert dash lists to bullet
+    .trim();
+}
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
     return NextResponse.json(
-      { message: "Great effort! Every puzzle you try makes you a stronger player. Keep going!" },
+      { message: "• The key idea here is forcing the opponent into a position where they have no good options.\n• Study the solution carefully and you'll recognise this pattern next time.\n• Keep practicing — every puzzle sharpens your tactical eye!" },
       { status: 200 }
     );
   }
@@ -26,13 +47,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { context, wrongMove, mode } = body;
 
-    // Build the user message — append wrong-move analysis when available
     let userMessage = context as string;
+
     if (wrongMove && typeof wrongMove === "string") {
-      userMessage += `\n\nIMPORTANT: The player tried the move ${wrongMove}. Please explain specifically why this move doesn't work in this position, then clearly explain why the correct solution is stronger.`;
+      userMessage += `\n\nThe player tried the move: ${wrongMove}. In your bullet about incorrect moves, explain specifically why this move doesn't work — what can the opponent do that punishes it or why it misses the point?`;
     }
+
     if (mode === "endgames") {
-      userMessage += "\n\nNote: This is an endgame position. Emphasize the endgame principle being demonstrated (e.g., opposition, key squares, rook cutoff, pawn breakthrough) so the student understands the concept, not just the move.";
+      userMessage += "\n\nThis is an endgame. Name and explain the endgame principle being demonstrated (e.g., opposition, key squares, rook cutoff, pawn breakthrough, Lucena, Philidor). The student needs to understand the concept so they can apply it in any endgame, not just this position.";
     }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -45,7 +67,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 500,
+        max_tokens: 550,
         system: [
           {
             type: "text",
@@ -62,13 +84,14 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    const message = data.content?.[0]?.text || "Keep practicing — you're improving every time!";
+    const raw = data.content?.[0]?.text || "• Keep practicing — you're improving every time!\n• Study the solution and you'll spot this pattern next time.";
+    const message = sanitize(raw);
 
     return NextResponse.json({ message });
   } catch (error) {
     console.error("Coach API error:", error);
     return NextResponse.json({
-      message: "Great effort! Every puzzle makes you a stronger player. Study the solution and you'll spot this pattern next time!",
+      message: "• Great effort — every puzzle builds pattern recognition.\n• Study the solution carefully and think about why the opponent had no good reply.\n• You'll spot it faster next time!",
     });
   }
 }
