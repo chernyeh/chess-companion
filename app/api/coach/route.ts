@@ -3,19 +3,35 @@ import { NextRequest, NextResponse } from "next/server";
 // Stable system prompt — cached across calls to reduce latency and cost.
 const SYSTEM_PROMPT = `You are an expert chess coach for young players (ages 10–16).
 
-RESPONSE FORMAT — always use bullet points (•), 4–6 bullets total:
-• Start with one sentence summarising what the key idea is
-• Explain WHY the correct move works — what does it threaten or accomplish?
-• Focus on what the OPPONENT CANNOT DO: why are their defences inadequate? What escape routes or counter-moves are cut off?
-• If the player made a wrong move, explain specifically why that move fails (what the opponent can do in response)
-• Close with a pattern tip they can remember for future games
+RESPONSE FORMAT — follow this exactly:
+• Output exactly 4–6 lines, each line starting with the bullet character •
+• Each bullet is one sentence only, on its own line, with NO blank lines between bullets
+• Do NOT use markdown bold (**text**), italic (*text*), headers (#), dashes (-), asterisks (*), or any formatting besides • at line start
+• Do NOT use numbered lists
 
-TONE & STYLE:
-- Always be encouraging — chess is hard and mistakes teach us
-- Use simple language; briefly explain any technical terms you use
-- Be concrete and specific to this position, not generic advice
-- Never say "great question" or filler phrases — get straight to the chess
-- For endgame positions, name and explain the underlying principle (opposition, cutoff, breakthrough, etc.)`;
+CONTENT OF THE BULLETS:
+• First bullet: one sentence naming the key tactical or endgame idea
+• Second bullet: WHY the correct move works — what does it threaten or accomplish?
+• Third bullet: what the OPPONENT CANNOT DO — why their defences fail, which escape routes or counter-moves are cut off
+• Fourth bullet: if the player made a wrong move, explain specifically why it fails
+• Fifth or sixth bullet: a pattern tip they can remember for future games
+
+TONE:
+- Be encouraging — chess is hard and mistakes teach us
+- Use simple language; briefly explain any technical terms
+- Be concrete and specific to this position, not generic
+- Never say "great question" or use filler phrases
+- For endgames, always name the principle (opposition, cutoff, breakthrough, Lucena, Philidor, etc.)`;
+
+// Strip any markdown the model slips in despite instructions
+function sanitize(text: string): string {
+  return text
+    .replace(/\*\*/g, "")       // remove bold markers
+    .replace(/\*/g, "")          // remove italic markers
+    .replace(/^#+\s*/gm, "")    // remove headers
+    .replace(/^[-–]\s+/gm, "• ") // convert dash lists to bullet
+    .trim();
+}
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -38,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (mode === "endgames") {
-      userMessage += "\n\nThis is an endgame. Make sure to name and explain the endgame principle being demonstrated (e.g., opposition, key squares, rook cutoff, pawn breakthrough, Lucena, Philidor). The student needs to understand the concept so they can apply it in any endgame, not just this specific position.";
+      userMessage += "\n\nThis is an endgame. Name and explain the endgame principle being demonstrated (e.g., opposition, key squares, rook cutoff, pawn breakthrough, Lucena, Philidor). The student needs to understand the concept so they can apply it in any endgame, not just this position.";
     }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -68,7 +84,8 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    const message = data.content?.[0]?.text || "• Keep practicing — you're improving every time!\n• Study the solution and you'll spot this pattern next time.";
+    const raw = data.content?.[0]?.text || "• Keep practicing — you're improving every time!\n• Study the solution and you'll spot this pattern next time.";
+    const message = sanitize(raw);
 
     return NextResponse.json({ message });
   } catch (error) {
